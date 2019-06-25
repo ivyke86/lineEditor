@@ -1,0 +1,949 @@
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#include<malloc.h>
+#define LINEMAX 512
+#define DATAMAX 9999
+char helpmsg[]="How to use\n";
+char NOFILENAME[]="NO FILE NAME";
+struct data{
+    char *txt;
+    data *before;
+    data *next;
+};
+
+void e_command(data* head,char *CURRENT_FILENAME,char *L,data **now,char *lastcommand);
+int check_before_change(data *head,int n,int m,char *out_str,char *in_str,char mode);
+void g_changestring(data *head,int n,int m,char *out_str,char *in_str);
+void one_time_changestring(data *head,int n,int m,char *out_str, char *in_str);
+void find_showtxt(data *head, char *L,int n,int m);
+void changehead(data **head,data **undohead);
+void write_file(data *head,int n, int m,char *FILENAME);
+int check_file_exists(char *FILENAME);
+data *movenode(data *head,int start,int end,int target);
+data *copynode(data* head,int start,int end,int target);
+void copybuf(data *firsthead, data *head);
+int YESNO();
+data *inputmode(data *head,int n);
+void initlist(data *head);
+data *insert_node(data *target,char *txt);
+data *delete_node(data *target,int start,int end);
+void change_filename(char **CURRENT_FILENAME, char *NEW_FILENAME);
+int getfile(char *FILENAME,data *head,int FILELINES,int position,char mode);
+data *showtxt(data *head,int start,int end,char mode);
+int find_node_number(data *head,data *target);
+data *find_node(data *head,int node_number);
+void delete_space(char *X);
+void get_command(char *userinput,char *COM,char **rearinput);
+int get_fore(char *userinput,char **N,char **M,int *n,int *m);
+int findoffset(char *X);
+int getoffset(char *X, int forenumber, int NOWLINE, int FILELINES);
+int get_rear(char COM,char *rearinput,char **L,int m,int NOWLINE,int FILELINES,int *l, char **str_in,int *option_g);
+int get_g(char **str_in,int *option_g);
+int ORDER(int *n,int *m,int *l,int FILELINES,int NOWLINE,char *N,char *M,char *L,char COM,data *head);
+int filtering_fore_input(char *a);
+int atois(char *a);
+void makenull(char *userinput,char **N,char **M,char *COM,char **L,char **str_in,int *n,int *m,int *l);
+void showall(char *N,char *M,char COM,char *L,char *str_in,int n,int m,int l);
+int count_current_lines(data *head);
+int findchange(data *head,data *firsthead);
+void unlist(data *head);
+
+main(int argc,char **argv)
+
+
+main(int argc,char **argv)
+{
+    data *head=(data*)malloc(sizeof(data));
+    if(!head) return 0;
+    data *undohead=(data*)malloc(sizeof(data));
+    if(!undohead) return 0;
+    data *chead=(data*)malloc(sizeof(data));
+    if(!chead) return 0;
+    data *cnow=NULL;
+    data *now=NULL;
+    data *mpoint=NULL, *umpoint=NULL;
+    char userinput[LINEMAX+2];
+    char *N,*M,*L,*str_in;
+    N=M=L=str_in=NULL;
+    char COM=0;
+    char lastcommand=0;
+    int lastn=0,lastm=0,lastl=0,lastfilelines=0;
+    char *rearinput=NULL;
+    int n,m,l,i,option_g;
+    n=m=l=i=option_g=0;
+    char *CURRENT_FILENAME=NULL;
+    int FILELINES=0;
+    int NOWLINE=0;
+
+    initlist(head);
+    initlist(undohead);
+    initlist(chead);
+
+    if(argc>2){
+        puts("too many arguments");
+        exit(0);
+    }
+    else if(argc==2){
+        if(getfile(argv[1],head,0,0,'a')) exit(0);
+        change_filename(&CURRENT_FILENAME,argv[1]);
+        if(head->next) now=head->next;
+        else now=head;
+    }
+    else if(argc==1){
+        initlist(head);
+        initlist(undohead);
+        CURRENT_FILENAME=NOFILENAME;
+        now=head;
+    }
+    char junk[1000];
+    while(1){
+        FILELINES=count_current_lines(head);
+        NOWLINE=find_node_number(head,now);
+        makenull(userinput,&N,&M,&COM,&L,&str_in,&n,&m,&l);
+        printf(">");
+        fgets(userinput,LINEMAX+2,stdin);
+        if(strlen(userinput)>=LINEMAX+1){
+
+        fgets(userinput,LINEMAX+2,stdin);
+        if(strlen(userinput)>=LINEMAX+1){
+            while((i=getchar())!='\n'){
+                if(i==EOF) break;
+                ;
+            }
+            puts("userinput over maxrange");
+            i=0;
+            continue;
+        }
+        userinput[strlen(userinput)-1]=0;
+        get_command(userinput,&COM,&rearinput);
+//      showall(N,M,COM,L,str_in,n,m,l);
+        if(COM=='z'||COM=='x'||COM=='q'||COM=='='||COM=='u'||COM=='h'){
+            if(userinput[0]!=0||rearinput[0]!=0){
+                printf("please input only '%c' to execute command\n",COM);
+                continue;
+            }
+            if(COM=='q'){
+                if(lastcommand!=0){
+                    puts("file has been changed. are you sure to exit?");
+                    if(YESNO()=='y') break;
+                    continue;
+                }
+                break;
+            }
+        }
+        if(get_fore(userinput,&N,&M,&n,&m)) continue;
+//      showall(N,M,COM,L,str_in,n,m,l);
+        if(filtering_fore_input(N)||filtering_fore_input(M)) continue;
+        if(findoffset(N)==2||findoffset(M)==2) continue;
+        if(findoffset(N)==1) n=getoffset(N,NOWLINE,NOWLINE,FILELINES);
+        if(findoffset(M)==1) m=getoffset(M,n,NOWLINE,FILELINES);
+        if(get_rear(COM,rearinput,&L,m,NOWLINE,FILELINES,&l,&str_in,&option_g)) continue;
+        if(COM=='s'){if(get_g(&str_in,&option_g)) continue;}
+//      showall(N,M,COM,L,str_in,n,m,l);
+        if(ORDER(&n,&m,&l,FILELINES,NOWLINE,N,M,L,COM,head)) continue;
+//      showall(N,M,COM,L,str_in,n,m,l);
+//      printf("g:%d\n",option_g);
+        if(COM=='\0'){
+            if(N==0&&M==0){
+                if(now->next==0) puts("end of line");
+                else {
+                    printf("%s\n",now->next->txt);
+                    now=now->next;
+                }
+            }
+            else now=showtxt(head,n,m,'p');
+        }
+        else if(COM=='e'){
+            if(lastcommand!=0){
+                puts("file has been changed. are you sure to overwrite? y/n");
+                if(YESNO()=='y'){
+
+                puts("file has been changed. are you sure to overwrite? y/n");
+                if(YESNO()=='y'){
+                    e_command(head,CURRENT_FILENAME,L,&now,&lastcommand);
+                    continue;
+                }
+                else continue;
+            }
+            else{
+                e_command(head,CURRENT_FILENAME,L,&now,&lastcommand);
+                continue;
+            }
+        }
+        else if(COM=='r'){
+            lastfilelines=FILELINES;
+            if(getfile(L,head,FILELINES,n,'r')) continue;
+            if(head->next) now=find_node(head,n+1);
+            if(FILELINES!=count_current_lines(head)){lastcommand=COM; lastn=n;}
+        }
+        else if(COM=='w'){
+            if(N==0&&M==0) n=1; m=FILELINES;
+            if(*L==0) L=CURRENT_FILENAME;
+            if(CURRENT_FILENAME==NOFILENAME&&*L==0){
+                puts("please input file name");
+                printf(":");
+                fgets(userinput,LINEMAX+2,stdin);
+                userinput[strlen(userinput)-1]=0;
+                L=userinput;
+            }
+            if(check_file_exists(L)){
+                if(YESNO()=='y'){
+                    write_file(head,n,m,L);
+                    change_filename(&CURRENT_FILENAME,L);
+                    lastcommand=0;
+                }
+                else continue;
+            }
+            else{
+                write_file(head,n,m,L);
+                change_filename(&CURRENT_FILENAME,L);
+                lastcommand=0;
+            }
+        }
+        else if(COM=='d'){
+            lastcommand=COM; lastn=n; lastm=m;
+    /*      cnow=chead;
+            for(i=n;i<=m;i++){
+                cnow=insert_node(cnow,find_node(head,i)->txt);
+            }*/
+            now=delete_node(head,n,m);
+        }
+        else if(COM=='h'){
+            printf("%s",helpmsg);
+        }
+
+            printf("%s",helpmsg);
+        }
+        else if(COM=='p'){
+            now=showtxt(head,n,m,'p');
+        }
+        else if(COM=='n'){
+            now=showtxt(head,n,m,'n');
+        }
+        else if(COM=='z'){
+            now=showtxt(head,NOWLINE,NOWLINE+21,'p');
+        }
+        else if(COM=='x'){
+            now=showtxt(head,NOWLINE,NOWLINE+21,'n');
+        }
+        else if(COM=='='){
+            if(lastcommand!=0) printf("%d/%d %s[*]\n",NOWLINE,FILELINES,CURRENT_FILENAME);
+            else {printf("%d/%d %s\n",NOWLINE,FILELINES,CURRENT_FILENAME);}
+        }
+        else if(COM=='i'){
+            if(FILELINES==DATAMAX){puts("file line max"); continue;}
+            lastfilelines=FILELINES;
+            now=inputmode(head,n-1);
+            if(now==head){
+                if(now->next) now=now->next;
+            }
+            if(FILELINES!=count_current_lines(head)){lastcommand=COM; lastn=n;}
+        }
+        else if(COM=='a'){
+            if(FILELINES==DATAMAX){puts("file line max"); continue;}
+            lastfilelines=FILELINES;
+            now=inputmode(head,n);
+            if(FILELINES!=count_current_lines(head)){lastcommand=COM; lastn=n;}
+        }
+        else if(COM=='c'){
+            lastcommand=COM; lastn=n; lastm=m;
+        /*  cnow=chead;
+            for(i=n;i<=m;i++){
+                cnow=insert_node(cnow,find_node(head,i)->txt);
+            }*/
+            now=delete_node(head,n,m);
+            lastfilelines=count_current_lines(head);
+            now=inputmode(head,n-1);
+        }
+        else if(COM=='t'){
+            if(FILELINES+m-n+1>DATAMAX){
+                puts("file line overrange"); continue;
+            }
+            lastcommand=COM; lastn=n; lastm=m; lastl=l;
+            now=copynode(head,n,m,l);
+        }
+        else if(COM=='m'){
+            if(l>=n&&l<=m){puts("invaild input. 'l' is between 'n' and 'm'"); continue;}
+            mpoint=find_node(head,l);
+
+            if(l>=n&&l<=m){puts("invaild input. 'l' is between 'n' and 'm'"); continue;}
+            mpoint=find_node(head,l);
+            umpoint=find_node(head,n)->before;
+            now=movenode(head,n,m,l);
+            lastcommand='m'; lastn=n; lastm=m;
+        }
+        else if(COM=='s'){
+            if(option_g==1){
+                option_g=0;
+                if(check_before_change(head,n,m,L,str_in,'g')) continue;
+                copybuf(undohead,head);
+                lastcommand='s';
+                g_changestring(head,n,m,L,str_in);
+            }
+            else{
+                if(check_before_change(head,n,m,L,str_in,'a')) continue;
+                copybuf(undohead,head);
+                lastcommand='s';
+                one_time_changestring(head,n,m,L,str_in);
+            }
+        }
+        else if(COM=='/'){
+            find_showtxt(head,L,n,m);
+        }
+        else if(COM=='u'){
+            if(lastcommand==0) continue;
+            if(lastcommand=='u'||lastcommand=='s'||lastcommand=='g'){
+                changehead(&head,&undohead);
+                now=find_node(head,NOWLINE);
+            }
+            else if(lastcommand=='m'){
+                copybuf(undohead,head);
+                lastl=find_node_number(head,mpoint);
+                movenode(head,lastl+1,lastl+lastm-lastn+1,find_node_number(head,umpoint));
+            }
+            else if(lastcommand=='d'||lastcommand=='c'){
+                copybuf(undohead,head);
+                if(lastcommand=='c'&&FILELINES!=0) delete_node(head,lastn,lastn+FILELINES-lastfilelines-1);
+                cnow=chead->next;
+                now=find_node(head,lastn-1);
+                while(cnow){
+                    now=insert_node(now,cnow->txt);
+                    cnow=cnow->next;
+                }
+                cnow=chead;
+                unlist(chead);
+            }
+            else if(lastcommand=='t'){
+                copybuf(undohead,head);
+                now=delete_node(head,lastl+1,lastl+lastm-lastn+1);
+            }
+            else if(lastcommand=='r'||lastcommand=='a'|| lastcommand=='i'){
+                copybuf(undohead,head);
+
+            else if(lastcommand=='r'||lastcommand=='a'|| lastcommand=='i'){
+                copybuf(undohead,head);
+                if(lastcommand=='a'||lastcommand=='r'){
+                    now=delete_node(head,lastn+1,lastn+FILELINES-lastfilelines);
+                }
+                else if(lastcommand=='i'){
+                    now=delete_node(head,lastn,lastn+FILELINES-lastfilelines-1);
+                }
+            }
+            lastcommand='u';
+        }
+        else {puts("invaild command"); continue;}
+    }
+    unlist(head);
+    unlist(undohead);
+    unlist(chead);
+    free(head);
+    free(undohead);
+    free(chead);
+    if(CURRENT_FILENAME!=NOFILENAME) free(CURRENT_FILENAME);
+}
+void e_command(data* head,char *CURRENT_FILENAME,char *L,data **now,char *lastcommand){
+    if(getfile(L,head,0,0,'a')) return;
+    else{
+        change_filename(&CURRENT_FILENAME,L);
+        if(head->next) *now=head->next;
+        else *now=head;
+        *lastcommand=0;
+        return;
+    }
+}
+void g_changestring(data *head,int n,int m,char *out_str,char *in_str){
+    int i,j=0;
+    char *p,*q,*x;
+    char buf[LINEMAX+2];
+    char bufx[LINEMAX+2];
+    char buf_final[LINEMAX+2];
+    i=strlen(in_str)-strlen(out_str);
+    head=find_node(head,n);
+    while(n<=m){
+        memset(buf,0,LINEMAX+2);
+        memset(bufx,0,LINEMAX+2);
+        memset(buf_final,0,LINEMAX+2);
+        strcpy(bufx,head->txt);
+        strcpy(buf_final,head->txt);
+        x=bufx;
+        while(p=strstr(x,out_str)){
+            strcpy(buf,p);
+            q=buf;
+            strcpy(q,in_str);
+            strcpy(q+strlen(in_str),p+strlen(out_str));
+            strcpy(buf_final+(p-bufx)+i*j,buf);
+            x=p+strlen(out_str);
+
+            strcpy(buf_final+(p-bufx)+i*j,buf);
+            x=p+strlen(out_str);
+            j++;
+        }
+        head->txt=(char*)realloc(head->txt,sizeof(char)*strlen(buf_final)+1);
+        strcpy(head->txt,buf_final);
+        head=head->next;
+        n++;
+        j=0;
+    }
+
+}
+int check_before_change(data *head,int n,int m,char *out_str,char *in_str,char mode){
+    int i=0,j=0,k=0,targetline;
+    char *p;
+    char *target;
+    i=strlen(in_str)-strlen(out_str);
+    head=find_node(head,n);
+    for(;n<=m;n++){
+        targetline=strlen(head->txt);
+        target=head->txt;
+        while(p=strstr(target,out_str)){
+            target=p+strlen(out_str);
+            j++;
+        }
+        if(mode=='g'&&(i*j+targetline)>LINEMAX+1){puts("string is too long. unable to change");return 1;}
+        if(mode!='g'&&j!=0&&(i+targetline)>LINEMAX+1){puts("string is too long. unable to change"); return 1; }
+        head=head->next;
+        k+=j;
+        j=0;
+    }
+    if(k==0){puts("str not found"); return 1;}
+    return 0;
+}
+void one_time_changestring(data *head,int n, int m,char *out_str, char *in_str){
+    int i=n;
+    char *p,*q;
+    char buf[LINEMAX+2];
+    head=find_node(head,n);
+    while(i<=m){
+        if(p=strstr(head->txt,out_str)){
+            strcpy(buf,head->txt);
+            q=buf+(p-head->txt);
+            strcpy(q,in_str);
+            strcpy(q+strlen(in_str),p+strlen(out_str));
+            head->txt=(char*)realloc(head->txt,sizeof(char)*strlen(buf));
+            strcpy(head->txt,buf);
+        }
+        head=head->next;
+        i++;
+    }
+}
+void find_showtxt(data *head, char *L,int n, int m){
+
+}
+void find_showtxt(data *head, char *L,int n, int m){
+    int i=n, j=0;
+    head=find_node(head,n);
+    while(i<=m){
+        if(strstr(head->txt,L)){printf("%4d:%s\n",i,head->txt); j++;}
+        head=head->next;
+        i++;
+    }
+    if(j==0) puts("str not found");
+}
+void changehead(data **head,data **undohead){
+    data *temp;
+    temp=*head;
+    *head=*undohead;
+    *undohead=temp;
+}
+void write_file(data *head,int n, int m,char *FILENAME){
+    FILE *fp=fopen(FILENAME,"w");
+
+    if(head->next) head=find_node(head,n);
+    for(;n<=m;n++){
+        fprintf(fp,"%s\n",head->txt);
+        head=head->next;
+    }
+    fclose(fp);
+}
+int check_file_exists(char *FILENAME){
+    FILE *fp=fopen(FILENAME,"r");
+    if(fp){
+        printf("filename %s is already exists. are you sure to overwrite? y/n\n",FILENAME);
+        fclose(fp);
+        return 1;
+    }
+    return 0;
+}
+data *movenode(data *head,int start,int end,int target){
+    data *startnode=find_node(head,start);
+    data *endnode=find_node(head,end);
+    data *targetnode=find_node(head,target);
+    startnode->before->next=endnode->next;
+    if(endnode->next) endnode->next->before=startnode->before;
+    endnode->next=targetnode->next;
+    if(targetnode->next) targetnode->next->before=endnode;
+    targetnode->next=startnode;
+    startnode->before=targetnode;
+    return startnode;
+}
+data *copynode(data* head,int start,int end,int target){
+    data *startnode=find_node(head,start);
+    data *endnode=find_node(head,end);
+    data *targetnode=find_node(head,target);
+    data *temp=head;
+
+    data *targetnode=find_node(head,target);
+    data *temp=head;
+    for(;startnode!=endnode->next;startnode=startnode->next){
+        temp=insert_node(temp,startnode->txt);
+    }
+    movenode(head,1,end-start+1,end-start+1+target);
+    return targetnode->next;
+}
+void copybuf(data *firsthead, data *head){
+    unlist(firsthead);
+    head=head->next;
+    for(;head;head=head->next){
+        firsthead=insert_node(firsthead,head->txt);
+    }
+}
+int YESNO(){
+    char input;
+    while(1){
+        input=getchar();
+        if(input=='\n') continue;
+        getchar();
+        if(input=='y') return input;
+        else if(input=='n') return input;
+        else {puts("please input 'y' or 'n' only"); continue;}
+    }
+    return input;
+}
+data *inputmode(data *head,int n){
+    int i=0;
+    char inputtxt[LINEMAX+2];
+    data *target=find_node(head,n);
+    while(1){
+        if(count_current_lines(head)>=DATAMAX){
+            puts("file line overrange");
+            break;
+        }
+        fgets(inputtxt,LINEMAX+1,stdin);
+        if(inputtxt[0]=='.'&&inputtxt[1]=='\n') break;
+        if(inputtxt[0]=='$'){
+            while(inputtxt[i]!=0){
+                inputtxt[i]=inputtxt[i+1];
+                i++;
+            }
+            i=0;
+        }
+        inputtxt[strlen(inputtxt)-1]=0;
+        target=insert_node(target,inputtxt);
+    }
+    return target;
+}
+void initlist(data *head){
+    head->txt=NULL;
+    head->next=NULL;
+
+    head->txt=NULL;
+    head->next=NULL;
+    head->before=NULL;
+}
+data *insert_node(data *target,char *text){
+    data *NEW=(data*)malloc(sizeof(data));
+    NEW->txt=(char*)malloc(sizeof(char)*strlen(text)+1);
+    strcpy(NEW->txt,text);
+    if(target->next)target->next->before=NEW;
+    NEW->next=target->next;
+    target->next=NEW;
+    NEW->before=target;
+    return NEW;
+}
+data *delete_node(data *head, int startnum, int endnum){
+    data *start=find_node(head,startnum);
+    data *end=find_node(head,endnum);
+    data *del;
+    if(end->next){
+        start->before->next=end->next;
+        end->next->before=start->before;
+    }
+    else{
+        start->before->next=0;
+    }
+    while(start!=end){
+        if(start->next) start=start->next;
+        del=start;
+        if(del){
+            if(del->txt) free(del->txt);
+            free(del);
+        }
+    }
+    return find_node(head,startnum);
+}
+void change_filename(char **CURRENT_FILENAME, char *NEW_FILENAME){
+    if(*CURRENT_FILENAME!=NEW_FILENAME&&*CURRENT_FILENAME!=NOFILENAME) free(*CURRENT_FILENAME);
+    *CURRENT_FILENAME=(char*)malloc(sizeof(char)*strlen(NEW_FILENAME+1));
+    strcpy(*CURRENT_FILENAME,NEW_FILENAME);
+}
+int getfile(char *FILENAME,data *head,int FILELINES,int position,char mode){
+    FILE *fp;
+    char buf[LINEMAX+3];
+    int i=0,new_lines;
+    new_lines=0;
+
+    fp=fopen(FILENAME,"r");
+
+    if(!fp){
+        puts("cannot open file");
+        return 1;
+    }
+
+
+    }
+
+    while(1){
+        fgets(buf,LINEMAX+3,fp);
+        if(strlen(buf)>LINEMAX+1){
+            puts("file string overrange. cannot read file");
+            return 1;
+        }
+        if(feof(fp)) break;
+        (new_lines)++;
+    }
+
+    if(FILELINES+new_lines > DATAMAX){
+        puts("file lines overrange. cannot read file");
+        fclose(fp);
+        return 1;
+    }
+
+    if(mode=='r'){
+        head=find_node(head,position);
+    }
+    else{
+        if(head->next){
+            unlist(head);
+    //      unlist(undohead);
+        }
+        initlist(head);
+    //  initlist(undohead);
+    }
+
+    fseek(fp,0,SEEK_SET);
+
+    for(i=1;i<=new_lines;i++){
+        fgets(buf,LINEMAX+2,fp);
+        buf[strlen(buf)-1]=0;
+        head=insert_node(head,buf);
+    }
+    fclose(fp);
+    return 0;
+}
+data *showtxt(data *head,int start,int end,char mode){
+    data *startnode;
+    data *endnode;
+    startnode=find_node(head,start);
+    endnode=find_node(head,end);
+    if(mode=='p'){
+        for(;;startnode=startnode->next){
+            printf("%s\n",startnode->txt);
+            if(startnode==endnode||startnode->next==0) break;
+        }
+    }
+    if(mode=='n'){
+        for(;;startnode=startnode->next){
+
+    if(mode=='n'){
+        for(;;startnode=startnode->next){
+            printf("%4d:%s\n",start,startnode->txt);
+            if(startnode==endnode||startnode->next==0) break;
+            start++;
+        }
+    }
+    if(startnode->next==0) return startnode;
+    return startnode;
+}
+int find_node_number(data *head,data *target){
+    int node_number=0;
+    while(head!=target){
+        head=head->next;
+        node_number++;
+    }
+    return node_number;
+}
+data *find_node(data *head,int node_number){
+    int i=0;
+    while(i!=node_number){
+        if(head->next) head=head->next;
+        i++;
+    }
+    return head;
+}
+void delete_space(char *X){
+    int i=0,j=0;
+    char *p=X;
+    while(1){
+        if(p[i]==' '){
+            j=i;
+            while(p[j]!=0){
+                p[j]=p[j+1];
+                j++;
+            }
+            continue;
+        }
+        if(p[i]==0) break;
+        i++;
+    }
+}
+void get_command(char *userinput,char *COM,char **rearinput){
+    char *p;
+    int i=0,j;
+    p=userinput;
+    while(*p!=0){
+        if((*p>='a'&&*p<='z')||*p=='/'||*p=='='){
+            *COM=*p;
+            *p='\0';
+            break;
+        }
+        p++;
+
+        }
+        p++;
+    }
+    *rearinput=userinput+strlen(userinput)+1;
+    delete_space(userinput);
+}
+int get_fore(char *userinput,char **N,char **M,int *n,int *m){
+    int comma=0;
+    char *p=userinput;
+    if(*userinput==0) return 0;
+    while(*p!=0){
+        if(*p==','){*p=0; comma++;}
+        p++;
+    }
+    if(comma>1){
+        puts("multiple comma");
+        return 1;
+    }
+    else *N=userinput;
+    if(comma==1){
+        *M=*N+strlen(*N)+1;
+    }
+    *n=atois(*N);
+    if(*M){*m=atois(*M);}
+    return 0;
+}
+int findoffset(char *X){
+    if(X==0) return 0;
+    int i=0,a=0,b=0;
+    while(X[i]!=0){
+        if(X[i]=='+'||X[i]=='-'){
+            a++;
+        }
+        else if(X[i]=='.'||X[i]=='$'){
+            b++;
+        }
+        i++;
+    }
+    if(a>1||b>1){puts("multiple offset"); return 2;}
+    else if(a==0&&b==0) return 0;
+    return 1;
+}
+int getoffset(char *X, int forenumber, int NOWLINE, int FILELINES){
+    int BASE=forenumber;
+    int OFFSET=0;
+    int i=0;
+    char temp[strlen(X+1)];
+    strcpy(temp,X);
+    if(temp[0]=='.'){
+        BASE=NOWLINE;
+        while(temp[i]!=0){
+            temp[i]=temp[i+1];
+            i++;
+
+            temp[i]=temp[i+1];
+            i++;
+        }
+    }
+    else if(temp[0]=='$'){
+        BASE=FILELINES;
+        while(temp[i]!=0){
+            temp[i]=temp[i+1];
+            i++;
+        }
+    }
+
+    if(temp[0]=='+'){
+        if(temp[1]==0) OFFSET=1;
+        else OFFSET=atois(temp+1);
+    }
+    else if(temp[0]=='-'){
+        if(temp[1]==0) OFFSET=-1;
+        else OFFSET=-(atois(temp+1));
+    }
+    else if(temp[0]==0) ;
+    else{
+//        puts("invalid offset");
+        return DATAMAX+1;
+    }
+    return BASE+OFFSET;
+}
+int get_rear(char COM,char *rearinput,char **L,int m,int NOWLINE,int FILELINES,int *l, char **str_in,int *option_g){
+//  printf("rear:%s\n",rearinput);
+    char out[LINEMAX+2];
+    char in[LINEMAX+2];
+    char *s=NULL;
+    int i=0,j=0;
+    if(COM=='t'||COM=='m'){
+        *L=strtok(rearinput,"/");
+        if(filtering_fore_input(*L)){puts("please input only digit to argument 'l'"); return 1;}
+        delete_space(*L);
+        if(findoffset(*L)==2){puts("invaild offset"); return 1;}
+        else if(findoffset(*L)==1) *l=getoffset(*L,m,NOWLINE,FILELINES);
+        else *l=atois(*L);
+    }
+    else if(COM=='e'||COM=='r'||COM=='w'){
+        *L=strtok(rearinput,"/");
+        delete_space(*L);
+    }
+    else if(COM=='/'||COM=='s'){
+        if(COM=='s'){
+            if(rearinput[0]!='/'){
+                s=strtok(rearinput,"/");
+                delete_space(s);
+                if(s[0]!=0){puts("please input '/' after 's' command"); return 1;}
+                *L=strtok(NULL,"/");
+
+                if(s[0]!=0){puts("please input '/' after 's' command"); return 1;}
+                *L=strtok(NULL,"/");
+                printf("L:%s\n",*L);
+            }
+            else *L=strtok(rearinput,"/");
+
+            if(*L==NULL){
+                printf("change\n:");
+                fgets(out,LINEMAX+2,stdin);
+                out[strlen(out)-1]=0;
+                printf("to\n:");
+                fgets(in,LINEMAX+2,stdin);
+                in[strlen(in)-1]=0;
+                printf("option g(y/n)\n:");
+                if(YESNO()=='y') *option_g=1;
+                strcpy(rearinput,out);
+                rearinput[strlen(rearinput)]=0;
+                strcpy(rearinput+strlen(rearinput)+1,in);
+                *L=rearinput;
+                *str_in=*L+strlen(*L)+1;
+                return 0;
+            }
+            else{
+                *str_in=strtok(NULL,"/");
+            }
+        }
+        else{
+            *L=strtok(rearinput,"/");
+            if(*L==NULL){
+                printf("find\n:");
+                fgets(out,LINEMAX+2,stdin);
+                out[strlen(out)-1]=0;
+                strcpy(rearinput,out);
+                rearinput[strlen(rearinput)]=0;
+                *L=rearinput;
+                return 0;
+            }
+            else{
+                *str_in=strtok(NULL,"/");
+            }
+        }
+//      printf("L:%s in:%s\n",*L,*str_in);
+        if(**L==0){puts("invaild input"); return 1;}
+        if(COM!='s'&&*str_in!=NULL){puts("input string is only needed to command 's'"); return 1;}
+    }
+    else{
+        if(rearinput!=0&&*rearinput!=0){ puts("don't need 3rd argument"); return 1;}
+    }
+    return 0;
+}
+int get_g(char **str_in,int *option_g){
+//  printf("str:%s\n",*str_in);
+    if(*(*str_in+strlen(*str_in)+1)==0) return 0;
+
+//  printf("str:%s\n",*str_in);
+    if(*(*str_in+strlen(*str_in)+1)==0) return 0;
+    else if(*(*str_in+strlen(*str_in)+1)=='g'&&*(*str_in+strlen(*str_in)+2)==0){
+        *option_g=1; return 0;
+    }
+    else {puts("only 'g' is valid option"); return 1;}
+}
+int ORDER(int *n,int *m,int *l,int FILELINES,int NOWLINE,char *N,char *M,char *L,char COM,data *head){
+    if(N==NULL||*N==0) *n=NOWLINE;
+    if(M==NULL||*M==0) *m=*n;
+    if(L==NULL||*L==0) *l=*m;
+        puts("invaild line input");
+        return 1;
+    }
+    if(*n==0){
+        if(count_current_lines(head)==0&&N==0){
+            if(COM=='i') *n=1;
+            else if(COM=='r'||COM=='a'||COM=='e'||COM=='w'||COM=='q'||COM=='='||COM=='h') return 0;
+    //need to take care of 'u' for case of file has become empty
+            else{printf("command '%c' is not available in empty file\n",COM); return 1;}
+        }
+        else if(COM=='r'||COM=='a') return 0;
+        else{
+            puts("invaild line input");
+            return 1;
+        }
+    }
+    return 0;
+}
+int filtering_fore_input(char *a){
+    if(a==0) return 0;
+    int i=0;
+    while(a[i]!='\0'){
+        if((a[i]<'0'||a[i]>'9')&&a[i]!=','&&a[i]!='+'&&a[i]!='-'&&a[i]!='$'&&a[i]!='.'){
+            puts("wrong input(filtering)");
+            return 1;
+        }
+        i++;
+    }
+    return 0;
+}
+int atois(char *a){
+    int total=0;
+    while(*a!='\0'){
+        if(total*10+(*a-48)>DATAMAX) return DATAMAX+1;
+        total=total*10+(*a-48);
+        a++;
+    }
+    return total;
+}
+void makenull(char *userinput,char **N,char **M,char *COM,char **L,char **str_in,int *n,int *m,int *l){
+    memset(userinput,0,LINEMAX+2); *N=0; *M=0; *COM=0; *L=0; *str_in=0; *n=0; *m=0; *l=0;
+}
+void showall(char *N,char *M,char COM,char *L,char *str_in,int n,int m,int l){
+    printf("N:%s M:%s COM:%c L:%s str_in:%s\nn:%d m:%d l:%d\n",N,M,COM,L,str_in,n,m,l);
+}
+int findchange(data *head,data *firsthead){
+    if(count_current_lines(head)!=count_current_lines(firsthead)){return 1;}
+    head=head->next; firsthead=firsthead->next;
+    if(head==firsthead) return 0;
+    while(1){
+        if(strcmp(head->txt,firsthead->txt)) {return 1;}
+        if(head->next==0&&firsthead->next==0) return 0;
+        head=head->next; firsthead=firsthead->next;
+    }
+}
+int count_current_lines(data *head){
+    int i=0;
+    while(1){
+        if(!head->next) break;
+        head=head->next;
+        i++;
+    }
+    return i;
+}
+void unlist(data *head){
+    data *del;
+    if(head->next) del=head->next;
+    else {return;}
+    while(head->next){
+        head->next=del->next;
+        if(del->txt){free(del->txt);}
+        free(del);
+        del=head->next;
+    }
+    initlist(head);
+}
